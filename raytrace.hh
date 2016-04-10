@@ -45,6 +45,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cmath>
 
 #include "gmath.hh"
 
@@ -181,9 +182,20 @@ namespace raytrace {
     virtual std::shared_ptr<Intersection> intersect(const Vector4& ray_origin,
 						    const Vector4& ray_direction) const {
       // See section 4.4.1 of Marschner et al.
+      
+
+      double t_m = -ray_origin * ray_direction;
+      double l_m2 = ray_origin * ray_direction - (ray_origin * ray_direction) * (ray_origin * ray_direction);
+      if(l_m2 < 0)
+      {
+        return std::shared_ptr<Intersection>(nullptr);
+      }
+      double delta_t = sqrt(1 - (l_m2*l_m2));
+      double t0 = -t_m + delta_t;
+      double t1 = -t_m - delta_t;
 
       // TODO, this will say objects never intersect.
-      return std::shared_ptr<Intersection>(nullptr);
+      return std::shared_ptr<Intersection>(ray_origin, ray_direction, (t0 < t1)?t0:t1);
     }
   };
 
@@ -402,6 +414,24 @@ namespace raytrace {
       
       std::shared_ptr<Image> image(new Image(width, height, *_background_color));
 
+      // for each pixel
+      for(auto& rows : _pixels)
+      {
+        for(auto& elem : rows)
+        {
+          //compute viewing ray -> ray_origin, ray_direction
+          // viewingRay = computeViewingRay();
+          //if(ray hits object)
+          //  compute normal -> normal
+
+          //  evaluate shading model and set pixel to that color // page 82
+
+          else
+          {
+            elem = _background_color;
+          }
+        }
+      }
       // TODO: implement the raytracing algorithm described in section
       // 4.6 of Marschner et al.
       
@@ -409,6 +439,21 @@ namespace raytrace {
     }
 
   private:
+    computeViewingRay(){
+      
+      // computes viewing ray
+    
+    }
+    computeNormal(viewingRay, sphereObject){
+      
+      // compute normal between scene object and viewing ray
+
+    }
+    evaluateShading(){
+      
+      // set pixel to correct color
+    
+    }
     // TODO: You will probably want to write some private helper
     // functions to break up the render() function into digestible
     // pieces.
