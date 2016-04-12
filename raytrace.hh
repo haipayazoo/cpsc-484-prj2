@@ -91,8 +91,8 @@ namespace raytrace {
   
   bool is_color(const Color& c) {
     return (is_color_intensity(c[0]) &&
-	    is_color_intensity(c[1]) &&
-	    is_color_intensity(c[2]));
+      is_color_intensity(c[1]) &&
+      is_color_intensity(c[2]));
   }
 
   // Convenience function to convert a 24-bit hexadecimal web color,
@@ -117,11 +117,11 @@ namespace raytrace {
 
   public:
     Intersection(std::shared_ptr<Vector4> point,
-		 std::shared_ptr<Vector4> normal,
-		 double t)
+     std::shared_ptr<Vector4> normal,
+     double t)
       : _point(point),
-	_normal(normal),
-	_t(t) {
+  _normal(normal),
+  _t(t) {
       assert(point->is_homogeneous_point());
       assert(normal->is_homogeneous_translation());
       assert(t >= 0.0);
@@ -142,9 +142,9 @@ namespace raytrace {
 
   public:
     SceneObject(std::shared_ptr<Color> diffuse_color,
-		std::shared_ptr<Color> specular_color)
+    std::shared_ptr<Color> specular_color)
       : _diffuse_color(diffuse_color),
-	_specular_color(specular_color) {
+  _specular_color(specular_color) {
       assert(is_color(*diffuse_color));
       assert(is_color(*specular_color));
     }
@@ -158,7 +158,7 @@ namespace raytrace {
     // intersects with the object. If they never intersect, return
     // nullptr.
     virtual std::shared_ptr<Intersection> intersect(const Vector4& ray_origin,
-						    const Vector4& ray_direction) const = 0;
+                const Vector4& ray_direction) const = 0;
   };
 
   // Concrete subclass for a sphere.
@@ -169,20 +169,23 @@ namespace raytrace {
 
   public:
     SceneSphere(std::shared_ptr<Color> diffuse_color,
-		std::shared_ptr<Color> specular_color,
-		std::shared_ptr<Vector4> center,
-		double radius)
+    std::shared_ptr<Color> specular_color,
+    std::shared_ptr<Vector4> center,
+    double radius)
       : SceneObject(diffuse_color, specular_color),
-	_center(center),
-	_radius(radius) {
+  _center(center),
+  _radius(radius) {
       assert(center->is_homogeneous_point());
       assert(radius > 0.0);
     }
 
     virtual std::shared_ptr<Intersection> intersect(const Vector4& ray_origin,
-						    const Vector4& ray_direction) const {
+                const Vector4& ray_direction) const {
       // See section 4.4.1 of Marschner et al.
-      
+      // reference: 
+      // http://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection
+
+      // TODO: review below code (unsure if it actually is complete/valid)
 
       double t_m = -ray_origin * ray_direction;
       double l_m2 = ray_origin * ray_direction - (ray_origin * ray_direction) * (ray_origin * ray_direction);
@@ -194,8 +197,17 @@ namespace raytrace {
       double t0 = -t_m + delta_t;
       double t1 = -t_m - delta_t;
 
-      // TODO, this will say objects never intersect.
-      return std::shared_ptr<Intersection>(ray_origin, ray_direction, (t0 < t1)?t0:t1);
+      // (xor) swap (mimics work done in scratchapixel.com tutorial)
+      if(t0 > t1) {
+        t0 ^= t1;
+        t1 ^= t0;
+        t0 ^= t1;
+      }
+
+      // Intersection (use positive t, as noted in the scratchapixel.com tutorial)
+      // NOTE: Earlier, on l_m2 < 0 check, we already verified that an intersection exists.
+      //       Thus, no need to worry about a "bad" t here.
+      return std::shared_ptr<Intersection>(ray_origin, ray_direction, (t0 < 0) ? t1 : t0);
     }
   };
 
@@ -207,9 +219,9 @@ namespace raytrace {
 
   public:
     Light(std::shared_ptr<Color> color,
-	  double intensity)
+    double intensity)
       : _color(color),
-	_intensity(intensity) {
+  _intensity(intensity) {
       assert(is_color(*color));
       assert(intensity > 0.0);
     }
@@ -226,10 +238,10 @@ namespace raytrace {
 
   public:
     PointLight(std::shared_ptr<Color> color,
-	       double intensity,
-	       std::shared_ptr<Vector4> location)
+         double intensity,
+         std::shared_ptr<Vector4> location)
       : Light(color, intensity),
-	_location(location) {
+  _location(location) {
       assert(location->is_homogeneous_point());
     }
       
@@ -244,19 +256,9 @@ namespace raytrace {
     double _l, _t, _r, _b, _d;
 
   public:
-    Camera(std::shared_ptr<Vector4> location,
-	   std::shared_ptr<Vector4> gaze,
-	   std::shared_ptr<Vector4> up,
-	   double l, double t, double r, double b,
-	   double d)
-      : _location(location),
-	_gaze(gaze),
-	_up(up),
-	_l(l),
-	_t(t),
-	_r(r),
-	_b(b),
-	_d(d) {
+    Camera(std::shared_ptr<Vector4> location, std::shared_ptr<Vector4> gaze,
+     std::shared_ptr<Vector4> up, double l, double t, double r, double b, double d)
+      : _location(location), _gaze(gaze), _up(up), _l(l), _t(t), _r(r), _b(b), _d(d) {
       assert(location->is_homogeneous_point());
       assert(gaze->is_homogeneous_translation());
       assert(up->is_homogeneous_translation());
@@ -323,22 +325,22 @@ namespace raytrace {
     bool write_ppm(const std::string& path) const {
       std::ofstream f(path);
       if (!f)
-	return false;
+        return false;
 
       f << "P3" << std::endl
-	<< width() << ' ' << height() << std::endl
-	<< "255" << std::endl;
+        << width() << ' ' << height() << std::endl
+        << "255" << std::endl;
 
       for (int y = height()-1; y >= 0; --y) {
-	for (int x = 0; x < width(); ++x) {
-	  const Color& c(pixel(x, y));
-	  if (x > 0)
-	    f << ' ';
-	  f << discretize(c[0]) << ' '
-	    << discretize(c[1]) << ' '
-	    << discretize(c[2]);
-	}
-	f << std::endl;
+        for (int x = 0; x < width(); ++x) {
+          const Color& c(pixel(x, y));
+          if (x > 0)
+            f << ' ';
+            f << discretize(c[0]) << ' '
+              << discretize(c[1]) << ' '
+              << discretize(c[2]);
+        }
+        f << std::endl;
       }
 
       bool success(f);
@@ -354,9 +356,9 @@ namespace raytrace {
       assert(is_color_intensity(intensity));
       int x = static_cast<int>(round(intensity * 255.0));
       if (x < 0)
-	x = 0;
+        x = 0;
       else if (x > 255)
-	x = 255;
+        x = 255;
       return x;
     }
   };
@@ -390,13 +392,10 @@ namespace raytrace {
     // Initialize a scene, initially with no objects and no point
     // lights.
     Scene(std::shared_ptr<Light> ambient_light,
-	  std::shared_ptr<Color> background_color,
-	  std::shared_ptr<Camera> camera,
-	  bool perspective)
-      : _ambient_light(ambient_light),
-	_background_color(background_color),
-	_camera(camera),
-	_perspective(perspective) {
+    std::shared_ptr<Color> background_color,
+    std::shared_ptr<Camera> camera,
+    bool perspective) : _ambient_light(ambient_light), _background_color(background_color),
+                        _camera(camera), _perspective(perspective) {
       assert(is_color(*background_color));
     }
 
@@ -419,12 +418,17 @@ namespace raytrace {
       {
         for(auto& elem : rows)
         {
-          //compute viewing ray -> ray_origin, ray_direction
+          //compute viewing ray -> _Camera.location, _Camera.gaze
           // viewingRay = computeViewingRay();
-          //if(ray hits object)
-          //  compute normal -> normal
 
-          //  evaluate shading model and set pixel to that color // page 82
+          // std::shared_ptr<Intersection> hit = intersect(const Vector4& ray_origin,
+          //                                               const Vector4& ray_direction)
+
+          //if(ray hits object)
+          // compute normal -> normal
+
+          // evaluate shading model and set pixel to that color // page 82
+          // we have diffuse_color and light intensity
 
           else
           {
@@ -439,17 +443,19 @@ namespace raytrace {
     }
 
   private:
-    computeViewingRay(){
+    std::shared_ptr<Vector4> computeViewingRay(){
       
       // computes viewing ray
-    
+      return viewingRay;
     }
-    computeNormal(viewingRay, sphereObject){
+    // returns the normal of the intersection point (I believe)
+    std::shared_ptr<Vector4> computeNormal(viewingRay, sphereObject){
       
       // compute normal between scene object and viewing ray
 
     }
-    evaluateShading(){
+    // unsure about return type
+    void evaluateShading(){
       
       // set pixel to correct color
     
