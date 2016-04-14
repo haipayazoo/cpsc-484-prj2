@@ -183,11 +183,15 @@ namespace raytrace {
 
       // TODO: review below code (unsure if it actually is complete/valid)
 
+      // Geometric way of computing intersection between a ray and sphere
+
       double t_m = ray_origin * ray_direction * -1;
       double l_m2 = ray_origin * ray_direction - (ray_origin * ray_direction) * (ray_origin * ray_direction);
+      
+      // from book (we think; double-check later); we'd have to make sure that l_m2 <= 1 too
       if(l_m2 < 0)
       {
-        return std::shared_ptr<Intersection>(nullptr);
+        return nullptr;
       }
       double delta_t = sqrt(1 - l_m2);
       double t0 = -t_m + delta_t;
@@ -203,13 +207,35 @@ namespace raytrace {
       // Intersection (use positive t, as noted in the scratchapixel.com tutorial)
       // NOTE: Earlier, on l_m2 < 0 check, we already verified that an intersection exists.
       //       Thus, no need to worry about a "bad" t here.
-      std::shared_ptr<Vector4> ptr_origin(new Vector4(ray_origin));
-      std::shared_ptr<Vector4> ptr_direction(new Vector4(ray_direction));
+
+      /* 
+
+          QUESTION: Is ray_origin the point and ray_direction the normal?
+            Idea 1:
+              // time
+              time = (t0 < 0) ? t1 : t0;
+              // hit_point
+              hit = p(t) = ray_origin + ray_direction * t;
+              // hit_normal
+              hit_normal = hit / hit->magnitude();
+
+              // Intersection
+              return std::shared_ptr<Intersection>(new Intersection(hit, hit.normal(), time));
+            Idea 2:
+              // time
+              time = (t0 < 0) ? t1 : t0;
+              // hit point: using p + time * d
+              hit_point = ray_origin + (ray_direction * time);
+              hit_normal = (hit_point - _center) * 2;
+
+      */
+
+      // POSSIBLE TODO: Create #define make_vector_ptr(i) (v*i)
+
       return std::shared_ptr<Intersection>(
-          new Intersection(
-            ptr_origin,
-            ptr_direction,
-            (t0 < 0) ? t1 : t0));
+          new Intersection(ray_origin*1,         // lazy way to return a ptr type of ray_origin
+                           ray_direction*1,      // "                              " ray_direction
+                           (t0 < 0) ? t1 : t0)); // choose less-negative t-value
     }
   };
 
@@ -413,63 +439,38 @@ namespace raytrace {
       assert(height > 0);
       
       std::shared_ptr<Image> image(new Image(width, height, *_background_color));
+
+      // pixel coordinate positions
       int i, j;
-      
-      double u, v;
 
-      std::shared_ptr<Vector4> ray_origin, ray_direction, vec_u, vec_v, vec_w;
-
-      // Calculate vec_u, vec_v, and vec_w
-      // vec_w is a unit vector pointing behind the viewer
-      vec_w = _camera->gaze() / _camera->gaze().magnitude();
-      vec_w = -(*vec_w);
-
-      // vec_u is the unit cross product between vec_w and the up vector
-      vec_u = vec_w->cross(_camera->up());
-      vec_u = *vec_u / vec_u->magnitude();
-
-      // vec_v is unit vector point up
-      vec_v = vec_w->cross(*vec_u);
+      // viewing ray pointers
+      std::shared_ptr<Vector4> ray_origin, ray_direction;
 
       // for each pixel
       for (j = 0; j < height; ++j) {
         for (i = 0; i < width; ++i) {
-          //compute viewing ray -> _Camera.location, _Camera.gaze
-          // viewingRay = computeViewingRay();
-          // ray_origin = _camera.location();
-          // ray_direction = _camera.gaze();
-          /*
-            Camera(std::shared_ptr<Vector4> location, std::shared_ptr<Vector4> gaze,
-             std::shared_ptr<Vector4> up, double l, double t, double r, double b, double d)
-              : _location(location), _gaze(gaze), _up(up), _l(l), _t(t), _r(r), _b(b), _d(d) 
-          */
+          for (auto scene_obj : _objects) {
+            // compute viewing ray (initializes ray_origin and ray_direction)
+            compute_viewing_ray(ray_origin, ray_direction);
 
+            // compute intersection point
+            std::shared_ptr<Intersection> hit_point = scene_obj->intersect(ray_origin, ray_direction);
 
-          u = _camera->l() + (_camera->r() - _camera->l()) * (i + 0.5) / width;
-          v = _camera->b() + (_camera->t() - _camera->b()) * (j + 0.5) / height;
+            // if an intersection exists between the viewing ray and scene object
+            if(hit_point != nullptr) {
+              // TODO: Review below work
+              std::shared_ptr<Vector4> surface_normal = hit_point->normal();
 
-          if(_perspective) {
-            ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
-            ray_origin = _camera->location() * 1; // vec_e is a point
+              // evaluate shading model and set pixel to that color // page 82
+              // we have diffuse_color and light intensity
+              //image->set_pixel(i,j, light_intensity());
+            }
+            else
+            {
+              // set pixel color to background color (no hit)
+              //image->set_pixel(i, j, _background_color);
+            }
           }
-          else {
-            ray_direction = -(*vec_w);
-            ray_origin = *(_camera->location() + *(*vec_u * u)) + *vec_v * v;
-          }
-
-          // std::shared_ptr<Intersection> hit = intersect(const Vector4& ray_origin,
-          //                                               const Vector4& ray_direction)
-
-          //if(ray hits object)
-          // compute normal -> normal
-
-          // evaluate shading model and set pixel to that color // page 82
-          // we have diffuse_color and light intensity
-
-          //else
-          //{
-          //  //elem = _background_color;
-          //}
         }
       }
       // TODO: implement the raytracing algorithm described in section
@@ -479,17 +480,36 @@ namespace raytrace {
     }
 
   private:
-    /*std::shared_ptr<Vector4> computeViewingRay(){
-      
-      // computes viewing ray
-      return viewingRay;
-    }
-    // returns the normal of the intersection point (I believe)
-    std::shared_ptr<Vector4> computeNormal(viewingRay, sphereObject){
-      
-      // compute normal between scene object and viewing ray
+    // computes viewing ray
+    void compute_viewing_ray(std::shared_ptr<Vector4>& ray_origin, 
+                             std::shared_ptr<Vector4>& ray_direction){
+      // what are these again?
+      double u, v;
 
+      // what are these again? unit vectors of the camera or something like that
+      std::shared_ptr<Vector4> vec_u, vec_v, vec_w;
+
+      // compute u and v
+      u = _camera->l() + (_camera->r() - _camera->l()) * (i + 0.5) / width;
+      v = _camera->b() + (_camera->t() - _camera->b()) * (j + 0.5) / height;
+
+      // if we are using the perspective transform, compute the viewing ray based off of 
+      //     perspective transform
+      if(_perspective) {
+        // TODO: somehow clean up below line
+        ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
+
+        // saying "vector4 * 1" is a lazy way to make a ptr_type of the vector4
+        // POSSIBLE TODO: create macro #define make_vector_ptr(i) (v*i)
+        ray_origin = _camera->location() * 1;
+      }
+      else {
+        ray_direction = -(*vec_w);
+        // TODO: somehow clean up below line
+        ray_origin = *(_camera->location() + *(*vec_u * u)) + *vec_v * v;
+      }
     }
+    /*
     // unsure about return type
     void evaluateShading(){
       
