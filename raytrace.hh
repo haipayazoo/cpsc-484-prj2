@@ -117,11 +117,9 @@ namespace raytrace {
 
   public:
     Intersection(std::shared_ptr<Vector4> point,
-     std::shared_ptr<Vector4> normal,
-     double t)
-      : _point(point),
-  _normal(normal),
-  _t(t) {
+        std::shared_ptr<Vector4> normal,
+        double t
+        ) : _point(point), _normal(normal), _t(t) {
       assert(point->is_homogeneous_point());
       assert(normal->is_homogeneous_translation());
       assert(t >= 0.0);
@@ -172,9 +170,7 @@ namespace raytrace {
     std::shared_ptr<Color> specular_color,
     std::shared_ptr<Vector4> center,
     double radius)
-      : SceneObject(diffuse_color, specular_color),
-  _center(center),
-  _radius(radius) {
+      : SceneObject(diffuse_color, specular_color), _center(center), _radius(radius) {
       assert(center->is_homogeneous_point());
       assert(radius > 0.0);
     }
@@ -193,7 +189,7 @@ namespace raytrace {
       {
         return std::shared_ptr<Intersection>(nullptr);
       }
-      double delta_t = sqrt(1 - (l_m2*l_m2));
+      double delta_t = sqrt(1 - l_m2);
       double t0 = -t_m + delta_t;
       double t1 = -t_m - delta_t;
 
@@ -218,10 +214,8 @@ namespace raytrace {
     double _intensity;
 
   public:
-    Light(std::shared_ptr<Color> color,
-    double intensity)
-      : _color(color),
-  _intensity(intensity) {
+    Light(std::shared_ptr<Color> color, double intensity)
+      : _color(color), _intensity(intensity) {
       assert(is_color(*color));
       assert(intensity > 0.0);
     }
@@ -392,10 +386,11 @@ namespace raytrace {
     // Initialize a scene, initially with no objects and no point
     // lights.
     Scene(std::shared_ptr<Light> ambient_light,
-    std::shared_ptr<Color> background_color,
-    std::shared_ptr<Camera> camera,
-    bool perspective) : _ambient_light(ambient_light), _background_color(background_color),
-                        _camera(camera), _perspective(perspective) {
+        std::shared_ptr<Color> background_color,
+        std::shared_ptr<Camera> camera,
+        bool perspective)
+      : _ambient_light(ambient_light), _background_color(background_color),
+      _camera(camera), _perspective(perspective) {
       assert(is_color(*background_color));
     }
 
@@ -412,14 +407,28 @@ namespace raytrace {
       assert(height > 0);
       
       std::shared_ptr<Image> image(new Image(width, height, *_background_color));
+      int i, j;
+      double u, v;
+      Vector4 ray_origin, ray_direction, vec_u, vec_v, vec_w;
+
+      // Calculate vec_u, vec_v, and vec_w
 
       // for each pixel
-      for(auto& rows : _pixels)
-      {
-        for(auto& elem : rows)
-        {
+      for (j = 0; j < height; ++j) {
+        for (i = 0; i < width; ++i) {
           //compute viewing ray -> _Camera.location, _Camera.gaze
           // viewingRay = computeViewingRay();
+          // ray_origin = _camera.location();
+          // ray_direction = _camera.gaze();
+          u = _camera.l() + (_camera.r() - _camera.l()) * (i + 0.5) / width;
+          v = _camera.b() + (_camera.t() - _camera.b()) * (j + 0.5) / height;
+
+          if(_perpective) {
+          }
+          else {
+            ray_direction = -vec_w;
+            ray_origin = _camera.location() + u * vec_u + v * vec_v;
+          }
 
           // std::shared_ptr<Intersection> hit = intersect(const Vector4& ray_origin,
           //                                               const Vector4& ray_direction)
