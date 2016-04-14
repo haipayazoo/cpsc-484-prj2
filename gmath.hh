@@ -304,9 +304,9 @@ namespace gmath {
 
     // Compute the cross product between this and another vector. The
     // cross product is only defined for certain dimensions; this
-    // function asserts that DIMENSION is 3.
+    // function asserts that DIMENSION is 3 (or 4 for homogeneous vectors).
     ptr_type cross(const same_type& right) const {
-      assert(DIMENSION == 3);
+      assert(DIMENSION == 3 || DIMENSION == 4);
       ptr_type new_vec(new same_type());
       // See Marschner page 25 (Sect. 2.4)
       // Cthulhu wrote this.
