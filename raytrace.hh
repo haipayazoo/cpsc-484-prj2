@@ -183,7 +183,7 @@ namespace raytrace {
 
       // TODO: review below code (unsure if it actually is complete/valid)
 
-      double t_m = -ray_origin * ray_direction;
+      double t_m = (ray_origin * -1) * ray_direction;
       double l_m2 = ray_origin * ray_direction - (ray_origin * ray_direction) * (ray_origin * ray_direction);
       if(l_m2 < 0)
       {
@@ -195,15 +195,15 @@ namespace raytrace {
 
       // (xor) swap (mimics work done in scratchapixel.com tutorial)
       if(t0 > t1) {
-        t0 ^= t1;
-        t1 ^= t0;
-        t0 ^= t1;
+        double temp = t0;
+        t0 = t1;
+        t1 = temp;
       }
 
       // Intersection (use positive t, as noted in the scratchapixel.com tutorial)
       // NOTE: Earlier, on l_m2 < 0 check, we already verified that an intersection exists.
       //       Thus, no need to worry about a "bad" t here.
-      return std::shared_ptr<Intersection>(ray_origin, ray_direction, (t0 < 0) ? t1 : t0);
+      return std::shared_ptr<Intersection>(new Intersection(ray_origin, ray_direction, (t0 < 0) ? t1 : t0));
     }
   };
 
@@ -408,10 +408,21 @@ namespace raytrace {
       
       std::shared_ptr<Image> image(new Image(width, height, *_background_color));
       int i, j;
+      
       double u, v;
-      Vector4 ray_origin, ray_direction, vec_u, vec_v, vec_w;
+
+      std::shared_ptr<Vector4> ray_origin, ray_direction, vec_u, vec_v, vec_w;
 
       // Calculate vec_u, vec_v, and vec_w
+      // vec_w is a unit vector pointing behind the viewer
+      vec_w = -_camera.gaze()/_camera.gaze().magnitude();
+
+      // vec_u is the unit cross product between vec_w and the up vector
+      vec_u = vec_w.cross(_camera.up());
+      vec_u = vec_u / vec_u.magnitude();
+
+      // vec_v is unit vector point up
+      vec_v = vec_w.cross(vec_u);
 
       // for each pixel
       for (j = 0; j < height; ++j) {
@@ -420,10 +431,19 @@ namespace raytrace {
           // viewingRay = computeViewingRay();
           // ray_origin = _camera.location();
           // ray_direction = _camera.gaze();
+          /*
+            Camera(std::shared_ptr<Vector4> location, std::shared_ptr<Vector4> gaze,
+             std::shared_ptr<Vector4> up, double l, double t, double r, double b, double d)
+              : _location(location), _gaze(gaze), _up(up), _l(l), _t(t), _r(r), _b(b), _d(d) 
+          */
+
+
           u = _camera.l() + (_camera.r() - _camera.l()) * (i + 0.5) / width;
           v = _camera.b() + (_camera.t() - _camera.b()) * (j + 0.5) / height;
 
           if(_perpective) {
+            ray_direction = -d * vec_w + u * vec_u + v * vec_v;
+            ray_origin = vec_e; // vec_e is a point
           }
           else {
             ray_direction = -vec_w;
@@ -441,7 +461,7 @@ namespace raytrace {
 
           else
           {
-            elem = _background_color;
+            //elem = _background_color;
           }
         }
       }
@@ -452,7 +472,7 @@ namespace raytrace {
     }
 
   private:
-    std::shared_ptr<Vector4> computeViewingRay(){
+    /*std::shared_ptr<Vector4> computeViewingRay(){
       
       // computes viewing ray
       return viewingRay;
@@ -468,7 +488,7 @@ namespace raytrace {
       
       // set pixel to correct color
     
-    }
+    }*/
     // TODO: You will probably want to write some private helper
     // functions to break up the render() function into digestible
     // pieces.
