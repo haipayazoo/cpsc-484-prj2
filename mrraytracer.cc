@@ -76,18 +76,18 @@ struct Config {
 // Print command-line usage in the event of user error.
 void print_usage() {
   std::cerr << "usage:" << std::endl
-	    << "    raytrace_demo [OPTIONS...]" << std::endl
-	    << std::endl
-	    << "options:" << std::endl
-	    << "    --scene SCENE     SCENE must be one of: spheres ballpit deluxe" << std::endl
-	    << "    -o OUTPUT_PATH" << std::endl
-	    << "    --width W         W must be a positive integer; default is " << DEFAULT_WIDTH << std::endl
-	    << "    --height H        H must be a positive integer; default is " << DEFAULT_HEIGHT << std::endl
-	    << "    --orthographic    use orthographic projection (default)" << std::endl
-	    << "    --perspective     use perspective projection instead of orthographic" << std::endl
-	    << std::endl
-	    << "Exactly one SCENE and exactly one OUTPUT_PATH must be specified." << std::endl
-	    << std::endl;
+            << "    raytrace_demo [OPTIONS...]" << std::endl
+            << std::endl
+            << "options:" << std::endl
+            << "    --scene SCENE     SCENE must be one of: spheres ballpit deluxe" << std::endl
+            << "    -o OUTPUT_PATH" << std::endl
+            << "    --width W         W must be a positive integer; default is " << DEFAULT_WIDTH << std::endl
+            << "    --height H        H must be a positive integer; default is " << DEFAULT_HEIGHT << std::endl
+            << "    --orthographic    use orthographic projection (default)" << std::endl
+            << "    --perspective     use perspective projection instead of orthographic" << std::endl
+            << std::endl
+            << "Exactly one SCENE and exactly one OUTPUT_PATH must be specified." << std::endl
+            << std::endl;
 }
 
 // Convenience function to convert a string to a positive
@@ -130,41 +130,41 @@ std::unique_ptr<Config> parse_config(int argc, char** argv) {
     
     if (args[i] == "--scene") {
       if (last || got_scene) {
-	error = true;
+        error = true;
       } else if (args[i+1] == "spheres") {
-	config->scene_name = SCENE_NAME_SPHERES;
-	i++;
-	got_scene = true;
+        config->scene_name = SCENE_NAME_SPHERES;
+        i++;
+        got_scene = true;
       } else if (args[i+1] == "ballpit") {
-	config->scene_name = SCENE_NAME_BALLPIT;
-	i++;
-	got_scene = true;
+        config->scene_name = SCENE_NAME_BALLPIT;
+        i++;
+        got_scene = true;
       } else if (args[i+1] == "deluxe") {
-	config->scene_name = SCENE_NAME_DELUXE;
-	i++;
-	got_scene = true;
+        config->scene_name = SCENE_NAME_DELUXE;
+        i++;
+        got_scene = true;
       } else {
-	error = true;
+        error = true;
       }
     } else if (args[i] == "-o") {
       if (last || got_output_path || args[i+1].empty()) {
-	error = true;
+        error = true;
       } else {
-	config->output_path = args[i+1];
-	i++;
-	got_output_path = true;
+        config->output_path = args[i+1];
+        i++;
+        got_output_path = true;
       }
     } else if (args[i] == "--width") {
       if (last || !parse_positive_int(config->width, args[i+1])) {
-	error = true;
+        error = true;
       } else {
-	i++;
+        i++;
       }
     } else if (args[i] == "--height") {
       if (last || !parse_positive_int(config->height, args[i+1])) {
-	error = true;
+        error = true;
       } else {
-	i++;
+        i++;
       }
     } else if (args[i] == "--orthographic") {
       config->perspective = false;
@@ -224,35 +224,35 @@ int main(int argc, char** argv) {
       // Two spheres of similar sizes right next to each other.
       
       std::shared_ptr<raytrace::Camera> camera(new raytrace::Camera(origin,
-								    raytrace::vector4_translation(0, 0, 1),
-								    raytrace::vector4_translation(0, 1, 0),
-								    -1, 1,
-								    1, -1,
-								    2));
+                                                                    raytrace::vector4_translation(0, 0, 1),
+                                                                    raytrace::vector4_translation(0, 1, 0),
+                                                                    -1, 1,
+                                                                    1, -1,
+                                                                    2));
   
       scene.reset(new raytrace::Scene(default_ambient_light,
-				      near_black,
-				      camera,
-				      config->perspective));
+                                      near_black,
+                                      camera,
+                                      config->perspective));
       
       std::shared_ptr<raytrace::SceneObject> sphere;
 
       sphere.reset(new raytrace::SceneSphere(plum,
-					     white,
-					     raytrace::vector4_point(0, 0, 4),
-					     0.5));
+                                             white,
+                                             raytrace::vector4_point(0, 0, 4),
+                                             0.5));
       scene->add_object(sphere);
 
       sphere.reset(new raytrace::SceneSphere(papaya_whip,
-					     white,
-					     raytrace::vector4_point(0.5, 0, 4.5),
-					     0.4));
+                                             white,
+                                             raytrace::vector4_point(0.5, 0, 4.5),
+                                             0.4));
       scene->add_object(sphere);
 
       std::shared_ptr<raytrace::PointLight> light;
       light.reset(new raytrace::PointLight(white,
-					   1.0,
-					   raytrace::vector4_point(-2, 1, 0)));
+                                           1.0,
+                                           raytrace::vector4_point(-2, 1, 0)));
       scene->add_point_light(light);
     }
     break;
@@ -262,15 +262,15 @@ int main(int argc, char** argv) {
       // We look down on a square playpen of small, brighly colored. spheres.
       
       std::shared_ptr<raytrace::Camera> camera(new raytrace::Camera(raytrace::vector4_point(5, 10, -10),
-								    raytrace::vector4_translation(0, -1, 1)->normalized(),
-								    raytrace::vector4_translation(0, 1, 0),
-								    -1, 1,
-								    1, -1,
-								    2));
+                                                                    raytrace::vector4_translation(0, -1, 1)->normalized(),
+                                                                    raytrace::vector4_translation(0, 1, 0),
+                                                                    -1, 1,
+                                                                    1, -1,
+                                                                    2));
       scene.reset(new raytrace::Scene(default_ambient_light,
-				      sky_blue,
-				      camera,
-				      config->perspective));
+                                      sky_blue,
+                                      camera,
+                                      config->perspective));
       srand(SEED);
 
       // balls, all coordinates between (0, 0, 0) and (10, 10, 1).
@@ -281,30 +281,30 @@ int main(int argc, char** argv) {
       ball_colors.push_back(purple);
       ball_colors.push_back(orange);
       for (int i = 0; i < 8000; ++i) {
-	auto color(ball_colors[rand() % ball_colors.size()]);
-	double x( (rand() % 1000) / 100.0),
-	  y( (rand() % 1000) / 1000.0),
-	  z( (rand() % 1000) / 100.0);
-	std::shared_ptr<raytrace::SceneObject> object(new raytrace::SceneSphere(color,
-										white,
-										raytrace::vector4_point(x, y, z),
-										0.10));
-	scene->add_object(object);
+        auto color(ball_colors[rand() % ball_colors.size()]);
+        double x( (rand() % 1000) / 100.0),
+          y( (rand() % 1000) / 1000.0),
+          z( (rand() % 1000) / 100.0);
+        std::shared_ptr<raytrace::SceneObject> object(new raytrace::SceneSphere(color,
+                                                                                white,
+                                                                                raytrace::vector4_point(x, y, z),
+                                                                                0.10));
+        scene->add_object(object);
       }
 
       // lights
       std::shared_ptr<raytrace::PointLight> light;
       light.reset(new raytrace::PointLight(white,
-					   1.0,
-					   raytrace::vector4_point(-3, 3, 0)));
+                                           1.0,
+                                           raytrace::vector4_point(-3, 3, 0)));
       scene->add_point_light(light);
       light.reset(new raytrace::PointLight(white,
-					   0.8,
-					   raytrace::vector4_point(1, 3, 0)));
+                                           0.8,
+                                           raytrace::vector4_point(1, 3, 0)));
       scene->add_point_light(light);
       light.reset(new raytrace::PointLight(white,
-					   0.4,
-					   origin));
+                                           0.4,
+                                           origin));
       scene->add_point_light(light);
     }
     break;
