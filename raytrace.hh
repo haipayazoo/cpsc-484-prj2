@@ -183,7 +183,7 @@ namespace raytrace {
 
       // TODO: review below code (unsure if it actually is complete/valid)
 
-      double t_m = (ray_origin * -1) * ray_direction;
+      double t_m = ray_origin * ray_direction * -1;
       double l_m2 = ray_origin * ray_direction - (ray_origin * ray_direction) * (ray_origin * ray_direction);
       if(l_m2 < 0)
       {
@@ -203,7 +203,13 @@ namespace raytrace {
       // Intersection (use positive t, as noted in the scratchapixel.com tutorial)
       // NOTE: Earlier, on l_m2 < 0 check, we already verified that an intersection exists.
       //       Thus, no need to worry about a "bad" t here.
-      return std::shared_ptr<Intersection>(new Intersection(ray_origin, ray_direction, (t0 < 0) ? t1 : t0));
+      std::shared_ptr<Vector4> ptr_origin(new Vector4(ray_origin));
+      std::shared_ptr<Vector4> ptr_direction(new Vector4(ray_direction));
+      return std::shared_ptr<Intersection>(
+          new Intersection(
+            ptr_origin,
+            ptr_direction,
+            (t0 < 0) ? t1 : t0));
     }
   };
 
@@ -415,14 +421,15 @@ namespace raytrace {
 
       // Calculate vec_u, vec_v, and vec_w
       // vec_w is a unit vector pointing behind the viewer
-      vec_w = -_camera.gaze()/_camera.gaze().magnitude();
+      vec_w = _camera->gaze() / _camera->gaze().magnitude();
+      vec_w = -(*vec_w);
 
       // vec_u is the unit cross product between vec_w and the up vector
-      vec_u = vec_w.cross(_camera.up());
-      vec_u = vec_u / vec_u.magnitude();
+      vec_u = vec_w->cross(_camera->up());
+      vec_u = *vec_u / vec_u->magnitude();
 
       // vec_v is unit vector point up
-      vec_v = vec_w.cross(vec_u);
+      vec_v = vec_w->cross(*vec_u);
 
       // for each pixel
       for (j = 0; j < height; ++j) {
@@ -438,16 +445,16 @@ namespace raytrace {
           */
 
 
-          u = _camera.l() + (_camera.r() - _camera.l()) * (i + 0.5) / width;
-          v = _camera.b() + (_camera.t() - _camera.b()) * (j + 0.5) / height;
+          u = _camera->l() + (_camera->r() - _camera->l()) * (i + 0.5) / width;
+          v = _camera->b() + (_camera->t() - _camera->b()) * (j + 0.5) / height;
 
-          if(_perpective) {
-            ray_direction = -d * vec_w + u * vec_u + v * vec_v;
-            ray_origin = vec_e; // vec_e is a point
+          if(_perspective) {
+            ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
+            ray_origin = _camera->location() * 1; // vec_e is a point
           }
           else {
-            ray_direction = -vec_w;
-            ray_origin = _camera.location() + u * vec_u + v * vec_v;
+            ray_direction = -(*vec_w);
+            ray_origin = *(_camera->location() + *(*vec_u * u)) + *vec_v * v;
           }
 
           // std::shared_ptr<Intersection> hit = intersect(const Vector4& ray_origin,
@@ -459,10 +466,10 @@ namespace raytrace {
           // evaluate shading model and set pixel to that color // page 82
           // we have diffuse_color and light intensity
 
-          else
-          {
-            //elem = _background_color;
-          }
+          //else
+          //{
+          //  //elem = _background_color;
+          //}
         }
       }
       // TODO: implement the raytracing algorithm described in section
