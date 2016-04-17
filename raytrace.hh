@@ -489,7 +489,10 @@ namespace raytrace {
     }
     
     // unsure about return type
-    std::shared_ptr<Color> evaluate_shading(const std::shared_ptr<Vector4>& normal){
+    std::shared_ptr<Color> evaluate_shading(
+        const std::shared_ptr<SceneObject>& obj,
+        const std::shared_ptr<Vector4>& inter,
+        const std::shared_ptr<Vector4>& normal) {
       // set pixel to correct color
       
       // k = surface color
@@ -499,45 +502,34 @@ namespace raytrace {
 
       std::shared_ptr<Vector4> unit_normal = normal/normal->magnitude();
 
-      // unit light vector
+      // Light vectors
+      std::shared_ptr<Vector4> light_displacement;
       std::shared_ptr<Vector4> unit_light_vector;
 
-      // check line 100 for definition of web_color
-      double accumulated_light(web_color(0x0));
+      double accumulated_light = 0.0;
 
       // temporary variable used for each iteration of point lights
       std::shared_ptr<Vector4> current_point_light;
-
-      std::shared_ptr<Vector4> 
-
-      double n_l;
-
-      /*
-        k_a*i_a + sum(k_d*i_i*max(0,n*l))
-
-        accumulator = 0;
-        max_light = 0;
-
-
-
-        for each light in lights:
-          std::shared_ptr<Vector4> i_u = light->intensity()/light->intensity()->magnitude();
-          max_light = std::max(0, n*i_u);
-          accumulated_light = accumulated_light + k_d*i_i*max(0,n*l)
-
-        return (k * i) + accumulated_light
-      */
+      double n_l, max_light, point_light_intensity;
 
       // for each light, accumulate 
       for(std::shared_ptr<PointLight> point_light : _point_lights) {
-        // unit_light_vector = light position - point of intersection
-        unit_light_vector = //
-        max_light = std::max(0, unit_normal * unit_light_vector);
+        // Displacment from inter to point_light
+        light_displacement = point_light->location() - inter;
 
-        current_point_light = max_light * scene_obj->diffuse_color() * point_light->intensity();
+        // Find the intensity
+        unit_light_vector = light_displacement / light_displacement->magnitude();
+        max_light = std::max(0.0, unit_normal * unit_light_vector);
 
-        accumulated_light = accumulated_light + current_light;
+        // Intensity of a point light varies by distance^2
+        // <https://en.wikipedia.org/wiki/Inverse-square_law>
+        point_light_intensity = point_light->intensity() / light_displacement->magnitude();
+        current_point_light = max_light * scene_obj->diffuse_color() * point_light_intensity;
+
+        accumulated_light += current_point_light;
       }
+
+      accumulated_light += _ambient_light->intensity
 
       return ;
     }
