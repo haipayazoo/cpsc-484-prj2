@@ -490,15 +490,33 @@ namespace raytrace {
     
     // unsure about return type
     std::shared_ptr<Color> evaluate_shading(
-        const std::shared_ptr<SceneObject>& obj,
-        const std::shared_ptr<Vector4>& inter,
-        const std::shared_ptr<Vector4>& normal) {
+        const std::shared_ptr<SceneObject>& scene_obj,
+        const std::shared_ptr<Intersection>& intersection) {
       // set pixel to correct color
       
-      // k = surface color
-      // i = intensity of the light
-      // i_a = intensity of ambient
-      // i_i = intensity of each light
+      /*
+        L = k_a*I_a + sum(k_d * I_i * max(0, n * l))
+
+        Color L = pixel color
+        Color k_a = surface ambient coefficient/color
+        double I_a = ambient light intensity
+        Color k_d = surface color (or combination of surface color and light color)
+        double I_i = intensity of the ith light source
+        Vector4 n = unit surface normal vector
+        Vector4 l = unit light vector
+
+        k_a --> color_mask(ambient_light_color, scene_object_surface_color);
+        k_d --> color_mask(point_light_color, scene_object_surface_color);
+
+        std::shared_ptr<Color> color_mask(const Color& light_color, const Color& surface_color) {
+          int i;
+          std::shared_ptr<Color> cm = light_color*1;
+          for(i = 0; i < 3; ++i) {
+            (*cm)[i] = (*cm)[i] * surface_color[i];
+          }
+          return cm;
+        }
+      */
 
       std::shared_ptr<Vector4> unit_normal = normal/normal->magnitude();
 
@@ -506,16 +524,17 @@ namespace raytrace {
       std::shared_ptr<Vector4> light_displacement;
       std::shared_ptr<Vector4> unit_light_vector;
 
-      double accumulated_light = 0.0;
+      // accumulated light (represents entire summation of point lights)
+      std::shared_ptr<Color> accumulated_light(web_color(0));
 
       // temporary variable used for each iteration of point lights
-      std::shared_ptr<Vector4> current_point_light;
-      double n_l, max_light, point_light_intensity;
+      std::shared_ptr<Color> current_point_light;
+      double max_light, point_light_intensity;
 
       // for each light, accumulate 
       for(std::shared_ptr<PointLight> point_light : _point_lights) {
         // Displacment from inter to point_light
-        light_displacement = point_light->location() - inter;
+        light_displacement = point_light->location() - intersection->point();
 
         // Find the intensity
         unit_light_vector = light_displacement / light_displacement->magnitude();
