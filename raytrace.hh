@@ -209,6 +209,9 @@ namespace raytrace {
       //       Thus, no need to worry about a "bad" t here.
 
       /* 
+          
+
+          ISSUE: We never used _radius (is it necessary?)
 
           QUESTION: Is ray_origin the point and ray_direction the normal?
             Idea 1:
@@ -226,16 +229,24 @@ namespace raytrace {
               time = (t0 < 0) ? t1 : t0;
               // hit point: using p + time * d
               hit_point = ray_origin + (ray_direction * time);
-              hit_normal = (hit_point - _center) * 2;
+              hit_normal = (hit_point - _center) * 2; // use this (gradient vector)
+
+              // x^2 + y^2 = r^2
+              // d/dx --> 2x = 0
+              // d/dy --> 2y = 0
 
       */
 
       // POSSIBLE TODO: Create #define make_vector_ptr(i) (v*i)
+      double time = (t0 < 0) ? t1 : t0;
+      std::shared_ptr<Vector4> hit_point = ray_origin + (ray_direction * time);
+      std::shared_ptr<Vector4> hit_normal = (hit_point - (*_center)) * 2;
+
 
       return std::shared_ptr<Intersection>(
-          new Intersection(ray_origin*1,         // lazy way to return a ptr type of ray_origin
-                           ray_direction*1,      // "                              " ray_direction
-                           (t0 < 0) ? t1 : t0)); // choose less-negative t-value
+          new Intersection(hit_point,   // lazy way to return a ptr type of ray_origin
+                           hit_normal,  // "                              " ray_direction
+                           time));      // choose less-negative t-value
     }
   };
 
@@ -266,8 +277,8 @@ namespace raytrace {
     PointLight(std::shared_ptr<Color> color,
          double intensity,
          std::shared_ptr<Vector4> location)
-      : Light(color, intensity),
-  _location(location) {
+      : Light(color, intensity), 
+        _location(location) {
       assert(location->is_homogeneous_point());
     }
       
@@ -497,10 +508,11 @@ namespace raytrace {
       //     perspective transform
       if(_perspective) {
         // TODO: somehow clean up below line
+        // below * stuff with shared_ptr is an abstraction leak
         ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
 
         // saying "vector4 * 1" is a lazy way to make a ptr_type of the vector4
-        // POSSIBLE TODO: create macro #define make_vector_ptr(i) (v*i)
+        // POSSIBLE TODO: create macro #define make_vector_ptr(v) (v*i)
         ray_origin = _camera->location() * 1;
       }
       else {
