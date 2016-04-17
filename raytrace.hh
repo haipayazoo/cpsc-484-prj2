@@ -178,75 +178,41 @@ namespace raytrace {
     virtual std::shared_ptr<Intersection> intersect(const Vector4& ray_origin,
                 const Vector4& ray_direction) const {
       // See section 4.4.1 of Marschner et al.
-      // reference: 
-      // http://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection
 
-      // TODO: review below code (unsure if it actually is complete/valid)
+      // reference: Book, page 76-77
+      double a = ray_direction * ray_direction;
+      double b = (ray_direction * (ray_origin - _center)) * 2;
+      double c = *(ray_origin - _center) * (ray_origin - _center) - (_radius*_radius);
 
-      // Geometric way of computing intersection between a ray and sphere
+      double discriminant = (b*b) - 4 * a * c;
 
-      double t_m = ray_origin * ray_direction * -1;
-      double l_m2 = ray_origin * ray_direction - (ray_origin * ray_direction) * (ray_origin * ray_direction);
+      // no intersection if square root of discriminant is imaginary
+      if(discriminant < 0) {
+        return std::shared_ptr<Intersection>(nullptr);
+      }
+
+      // calculate roots of the quadratic formula
+      double t0 = (-b + sqrt(discriminant))/(2*a);
+      double t1 = (-b - sqrt(discriminant))/(2*a);
       
-      // from book (we think; double-check later); we'd have to make sure that l_m2 <= 1 too
-      if(l_m2 < 0)
-      {
-        return nullptr;
-      }
-      double delta_t = sqrt(1 - l_m2);
-      double t0 = -t_m + delta_t;
-      double t1 = -t_m - delta_t;
+      // use smaller solution
+      double time = (t0 < t1) ? t0 : t1;
 
-      // (xor) swap (mimics work done in scratchapixel.com tutorial)
-      if(t0 > t1) {
-        double temp = t0;
-        t0 = t1;
-        t1 = temp;
-      }
-
-      // Intersection (use positive t, as noted in the scratchapixel.com tutorial)
-      // NOTE: Earlier, on l_m2 < 0 check, we already verified that an intersection exists.
-      //       Thus, no need to worry about a "bad" t here.
+      // hit point: using p + time * d
+      std::shared_ptr<Vector4> hit_point = ray_origin + (ray_direction * time);
 
       /* 
-          
+        reference: Book, page 33 (gradient vector), 37 (surface normal vector) 
+                    & 77 (last line of 4.4.1)
 
-          ISSUE: We never used _radius (is it necessary?)
-
-          QUESTION: Is ray_origin the point and ray_direction the normal?
-            Idea 1:
-              // time
-              time = (t0 < 0) ? t1 : t0;
-              // hit_point
-              hit = p(t) = ray_origin + ray_direction * t;
-              // hit_normal
-              hit_normal = hit / hit->magnitude();
-
-              // Intersection
-              return std::shared_ptr<Intersection>(new Intersection(hit, hit.normal(), time));
-            Idea 2:
-              // time
-              time = (t0 < 0) ? t1 : t0;
-              // hit point: using p + time * d
-              hit_point = ray_origin + (ray_direction * time);
-              hit_normal = (hit_point - _center) * 2; // use this (gradient vector)
-
-              // x^2 + y^2 = r^2
-              // d/dx --> 2x = 0
-              // d/dy --> 2y = 0
-
+        x^2 + y^2 = r^2
+        d/dx --> 2x = 0
+        d/dy --> 2y = 0
       */
-
-      // POSSIBLE TODO: Create #define make_vector_ptr(i) (v*i)
-      double time = (t0 < 0) ? t1 : t0;
-      std::shared_ptr<Vector4> hit_point = ray_origin + (ray_direction * time);
-      std::shared_ptr<Vector4> hit_normal = (hit_point - (*_center)) * 2;
+      std::shared_ptr<Vector4> hit_normal = (*((*hit_point) - _center)) * 2;
 
 
-      return std::shared_ptr<Intersection>(
-          new Intersection(hit_point,   // lazy way to return a ptr type of ray_origin
-                           hit_normal,  // "                              " ray_direction
-                           time));      // choose less-negative t-value
+      return std::shared_ptr<Intersection>(new Intersection(hit_point, hit_normal, time));
     }
   };
 
@@ -479,7 +445,7 @@ namespace raytrace {
             else
             {
               // set pixel color to background color (no hit)
-              //image->set_pixel(i, j, _background_color);
+              image->set_pixel(i, j, _background_color);
             }
           }
         }
@@ -521,13 +487,60 @@ namespace raytrace {
         ray_origin = *(_camera->location() + *(*vec_u * u)) + *vec_v * v;
       }
     }
-    /*
-    // unsure about return type
-    void evaluateShading(){
-      
-      // set pixel to correct color
     
-    }*/
+    // unsure about return type
+    std::shared_ptr<Color> evaluate_shading(const std::shared_ptr<Vector4>& normal){
+      // set pixel to correct color
+      
+      // k = surface color
+      // i = intensity of the light
+      // i_a = intensity of ambient
+      // i_i = intensity of each light
+
+      std::shared_ptr<Vector4> unit_normal = normal/normal->magnitude();
+
+      // unit light vector
+      std::shared_ptr<Vector4> unit_light_vector;
+
+      // check line 100 for definition of web_color
+      double accumulated_light(web_color(0x0));
+
+      // temporary variable used for each iteration of point lights
+      std::shared_ptr<Vector4> current_point_light;
+
+      std::shared_ptr<Vector4> 
+
+      double n_l;
+
+      /*
+        k_a*i_a + sum(k_d*i_i*max(0,n*l))
+
+        accumulator = 0;
+        max_light = 0;
+
+
+
+        for each light in lights:
+          std::shared_ptr<Vector4> i_u = light->intensity()/light->intensity()->magnitude();
+          max_light = std::max(0, n*i_u);
+          accumulated_light = accumulated_light + k_d*i_i*max(0,n*l)
+
+        return (k * i) + accumulated_light
+      */
+
+      // for each light, accumulate 
+      for(std::shared_ptr<PointLight> point_light : _point_lights) {
+        // unit_light_vector = light position - point of intersection
+        unit_light_vector = //
+        max_light = std::max(0, unit_normal * unit_light_vector);
+
+        current_point_light = max_light * scene_obj->diffuse_color() * point_light->intensity();
+
+        accumulated_light = accumulated_light + current_light;
+      }
+
+      return ;
+    }
     // TODO: You will probably want to write some private helper
     // functions to break up the render() function into digestible
     // pieces.
