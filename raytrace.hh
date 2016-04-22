@@ -195,12 +195,26 @@ namespace raytrace {
       double t0 = (-b + sqrt(discriminant))/(2*a);
       double t1 = (-b - sqrt(discriminant))/(2*a);
 
-      //std::cout<< "disc: " << discriminant << std::endl;
-      //std::cout<< "t0 " << t0 << " t1 " << t1 << std::endl;
-      
-      // use smaller solution (i.e. closer hit point)
-      // NOTE: Do we have to check for negative t? 
-      double time = (t0 < t1) ? t0 : t1;
+      // time variable (for below intersection checks)
+      double time = 0;
+
+      // intersection occurs in front of viewing ray (most common case)
+      if(t0 >= 0 && t1 >= 0) {
+        // choose time closest to 0
+        time = (t0 < t1) ? t0 : t1;
+      }
+      // if the intersection occurs behind the viewer, return no intersection
+      else if(t0 < 0 && t1 < 0) {
+        return std::shared_ptr<Intersection>(nullptr);
+      }
+      // if the camera is inside the sphere
+      else if(t0 < 0 && t1 >= 0) {
+        time = t1;
+      }
+      // if the camera is inside the sphere (again)
+      else {
+        time = t0;
+      }
 
       // hit point: using p + time * d
       std::shared_ptr<Vector4> hit_point = ray_origin + (ray_direction * time);
@@ -432,7 +446,7 @@ namespace raytrace {
       std::shared_ptr<Intersection> closest_hit, // closest hit
                                     hit_point;   // current hit
       std::shared_ptr<SceneObject> closest_obj;  // closest object
-      
+
       // for each pixel
       for (j = 0; j < height; ++j) {
 
@@ -543,7 +557,7 @@ namespace raytrace {
     std::shared_ptr<Color> evaluate_shading(std::shared_ptr<SceneObject> scene_obj,
                                             std::shared_ptr<Intersection> intersection,
                                             std::shared_ptr<Vector4> surface_normal) const{
-      // Pages 
+      // Page 84
 
       /*
         L = k_a*I_a + sum(k_d * I_i * max(0, n * l))
@@ -558,7 +572,7 @@ namespace raytrace {
       */
 
       // I believe this is the proper way to have the initial value for the accumulator
-      std::shared_ptr<Color> accumulated_color(web_color(0));
+      std::shared_ptr<Color> accumulated_color(web_color(0)); // or create new color with default constructor
       std::shared_ptr<Color> total_color;
 
       // Variables used to calculate and temporarily store the unit light vector
@@ -592,10 +606,7 @@ namespace raytrace {
 
       // this loop is to account for over-exposure
       for(int i = 0; i < total_color->dimension(); ++i) {
-        // one assert came out as 1.00068 (this is to fix that case)
-        // NOTE: We might want to look into this (over-exposure as sometimes values reach 1.1006)
-
-        // NOTE 2: Might want to change to round((*total_color)[i]) instead of setting to 1.0
+        // NOTE: Set to 1.0 as any "over-exposure" will crash the program
         (*total_color)[i] = ((*total_color)[i] > 1.0 /*&& (*total_color)[i] < 1.1*/) ? 1.0 : (*total_color)[i];
       }
 
