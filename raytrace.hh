@@ -84,6 +84,7 @@ namespace raytrace {
   // range [0, 1].
   
   bool is_color_intensity(double x) {
+    //std::cout << "Color intensity found: " << x << std::endl;
     return ((x >= 0.0) && (x <= 1.0));
   }
 
@@ -178,7 +179,7 @@ namespace raytrace {
     virtual std::shared_ptr<Intersection> intersect(const Vector4& ray_origin,
                 const Vector4& ray_direction) const {
       // See section 4.4.1 of Marschner et al.
-
+      //std::cout << "In intersection" << std::endl;
       // reference: Book, page 76-77
       double a = ray_direction * ray_direction;
       double b = (ray_direction * (ray_origin - _center)) * 2;
@@ -195,7 +196,7 @@ namespace raytrace {
       double t0 = (-b + sqrt(discriminant))/(2*a);
       double t1 = (-b - sqrt(discriminant))/(2*a);
       
-      // use smaller solution
+      // use smaller solution (i.e. closer hit point)
       double time = (t0 < t1) ? t0 : t1;
 
       // hit point: using p + time * d
@@ -211,6 +212,7 @@ namespace raytrace {
       */
       std::shared_ptr<Vector4> hit_normal = (*((*hit_point) - _center)) * 2;
 
+      //std::cout << "Exiting intersection." << std::endl;
 
       return std::shared_ptr<Intersection>(new Intersection(hit_point, hit_normal, time));
     }
@@ -418,7 +420,7 @@ namespace raytrace {
       std::shared_ptr<Image> image(new Image(width, height, *_background_color));
 
       // pixel coordinate positions
-      int i, j;
+      unsigned int i, j, o;
 
       // viewing ray pointers
       std::shared_ptr<Vector4> ray_origin, ray_direction;
@@ -426,28 +428,36 @@ namespace raytrace {
       // for each pixel
       for (j = 0; j < height; ++j) {
         for (i = 0; i < width; ++i) {
-          for (auto scene_obj : _objects) {
+          for (o = 0; o < _objects.size(); ++o) {
+            // print i,j,color intensities
             // compute viewing ray (initializes ray_origin and ray_direction)
-            compute_viewing_ray(ray_origin, ray_direction);
+            compute_viewing_ray(ray_origin, ray_direction, width, height, i, j);
 
             // compute intersection point
-            std::shared_ptr<Intersection> hit_point = scene_obj->intersect(ray_origin, ray_direction);
+            std::shared_ptr<Intersection> hit_point = _objects[o]->intersect(*ray_origin, *ray_direction);
 
             // if an intersection exists between the viewing ray and scene object
             if(hit_point != nullptr) {
               // TODO: Review below work
-              std::shared_ptr<Vector4> surface_normal = hit_point->normal();
+              // *1 trick (out of laziness)
+              std::shared_ptr<Vector4> surface_normal(hit_point->normal()*1);
 
               // evaluate shading model and set pixel to that color // page 82
               // we have diffuse_color and light intensity
-              //image->set_pixel(i,j, light_intensity());
+              std::shared_ptr<Color> new_color = evaluate_shading(_objects[o], hit_point, surface_normal);
+
+              image->set_pixel(i,j, *new_color);
             }
+            // check to see if we've drawn an object yet (if we did then don't accidentally overwrite it with 
+            // the background color)
+            // NOTE: need to somehow specify which is the closer object
             else
             {
               // set pixel color to background color (no hit)
-              image->set_pixel(i, j, _background_color);
+              image->set_pixel(i, j, *_background_color);
             }
           }
+
         }
       }
       // TODO: implement the raytracing algorithm described in section
@@ -459,7 +469,9 @@ namespace raytrace {
   private:
     // computes viewing ray
     void compute_viewing_ray(std::shared_ptr<Vector4>& ray_origin, 
-                             std::shared_ptr<Vector4>& ray_direction){
+                             std::shared_ptr<Vector4>& ray_direction,
+                             int width, int height, int i, int j) const{
+
       // what are these again?
       double u, v;
 
@@ -470,9 +482,21 @@ namespace raytrace {
       u = _camera->l() + (_camera->r() - _camera->l()) * (i + 0.5) / width;
       v = _camera->b() + (_camera->t() - _camera->b()) * (j + 0.5) / height;
 
+      // vec_w = gaze/magnitude(gaze)
+      // NOTE: parenthesis on -1 to avoid needing to dereference result of division
+      vec_w = _camera->gaze() / (_camera->gaze().magnitude() * -1);
+
+      // vec_u = t cross w / magnitude(t cross w) (two steps here)
+      vec_u = _camera->up().cross(*vec_w);
+      vec_u = *vec_u / vec_u->magnitude();
+
+      // vec_v = w cross u
+      vec_v = vec_w->cross(*vec_u);
+
       // if we are using the perspective transform, compute the viewing ray based off of 
       //     perspective transform
       if(_perspective) {
+        //std::cout << "Perspective" << std::endl;
         // TODO: somehow clean up below line
         // below * stuff with shared_ptr is an abstraction leak
         ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
@@ -488,12 +512,10 @@ namespace raytrace {
       }
     }
     
-    // unsure about return type
-    std::shared_ptr<Color> evaluate_shading(
-        const std::shared_ptr<SceneObject>& scene_obj,
-        const std::shared_ptr<Intersection>& intersection) {
-      // set pixel to correct color
-      
+    // set pixel to correct color
+    std::shared_ptr<Color> evaluate_shading(std::shared_ptr<SceneObject> scene_obj,
+                                            std::shared_ptr<Intersection> intersection,
+                                            std::shared_ptr<Vector4> surface_normal) const{
       /*
         L = k_a*I_a + sum(k_d * I_i * max(0, n * l))
 
@@ -504,57 +526,56 @@ namespace raytrace {
         double I_i = intensity of the ith light source
         Vector4 n = unit surface normal vector
         Vector4 l = unit light vector
-
-        k_a --> color_mask(ambient_light_color, scene_object_surface_color);
-        k_d --> color_mask(point_light_color, scene_object_surface_color);
-
-        std::shared_ptr<Color> color_mask(const Color& light_color, const Color& surface_color) {
-          int i;
-          std::shared_ptr<Color> cm = light_color*1;
-          for(i = 0; i < 3; ++i) {
-            (*cm)[i] = (*cm)[i] * surface_color[i];
-          }
-          return cm;
-        }
       */
 
-      std::shared_ptr<Vector4> unit_normal = normal/normal->magnitude();
+      // I believe this is the proper way to have the initial value for the accumulator
+      std::shared_ptr<Color> accumulated_color(_background_color); // or web_color(0)
+      std::shared_ptr<Color> total_color;
 
-      // Light vectors
-      std::shared_ptr<Vector4> light_displacement;
+      // Variables used to calculate and temporarily store the unit light vector
       std::shared_ptr<Vector4> unit_light_vector;
+      std::shared_ptr<Vector4> light_displacement;
 
-      // accumulated light (represents entire summation of point lights)
-      std::shared_ptr<Color> accumulated_light(web_color(0));
+      // Variable to store n * l (in max function)
+      double n_l;
 
-      // temporary variable used for each iteration of point lights
-      std::shared_ptr<Color> current_point_light;
-      double max_light, point_light_intensity;
+      // Variable for unit surface normal (of scene object)
+      std::shared_ptr<Vector4> unit_surface_normal = (*surface_normal)/surface_normal->magnitude();
 
-      // for each light, accumulate 
+      // for each point light in scene, do the required arithmetic
       for(std::shared_ptr<PointLight> point_light : _point_lights) {
-        // Displacment from inter to point_light
+        // displacment from intersection location to point_light location
         light_displacement = point_light->location() - intersection->point();
 
-        // Find the intensity
-        unit_light_vector = light_displacement / light_displacement->magnitude();
-        max_light = std::max(0.0, unit_normal * unit_light_vector);
+        // find the intensity
+        unit_light_vector = (*light_displacement) / light_displacement->magnitude();
 
-        // Intensity of a point light varies by distance^2
-        // <https://en.wikipedia.org/wiki/Inverse-square_law>
-        point_light_intensity = point_light->intensity() / light_displacement->magnitude();
-        current_point_light = max_light * scene_obj->diffuse_color() * point_light_intensity;
+        // do fancy arithmetic
+        n_l = (*unit_surface_normal) * unit_light_vector;
 
-        accumulated_light += current_point_light;
+        accumulated_color = *accumulated_color + 
+                            (*(scene_obj->diffuse_color() * point_light->intensity()) * 
+                            ((n_l > 0) ? n_l : 0) );
       }
 
-      accumulated_light += _ambient_light->intensity
+      total_color = *(_ambient_light->color() * _ambient_light->intensity()) + accumulated_color;
 
-      return ;
-    }
+      // one assert came out as 1.00068 (this is to fix that case)
+      (*total_color)[0] = ((*total_color)[0] > 1.0 /*&& (*total_color)[0] < 1.1*/) ? round((*total_color)[0]) : (*total_color)[0];
+      (*total_color)[1] = ((*total_color)[1] > 1.0 /*&& (*total_color)[1] < 1.1*/) ? round((*total_color)[1]) : (*total_color)[1];
+      (*total_color)[2] = ((*total_color)[2] > 1.0 /*&& (*total_color)[2] < 1.1*/) ? round((*total_color)[2]) : (*total_color)[2];
+
+      /*if((*total_color)[0] > 1.0 || (*total_color)[1] > 1.0 || (*total_color)[2] > 1.0) {
+        std::cout<<"Color intensities: " << (*total_color)[0]
+                 << " "                  << (*total_color)[1] 
+                 << " "                  << (*total_color)[2] << std::endl;
+      }*/
+
+      return total_color;
     // TODO: You will probably want to write some private helper
     // functions to break up the render() function into digestible
     // pieces.
+    }
   };
 }
 
