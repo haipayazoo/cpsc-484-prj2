@@ -197,6 +197,7 @@ namespace raytrace {
       double t1 = (-b - sqrt(discriminant))/(2*a);
       
       // use smaller solution (i.e. closer hit point)
+      // NOTE: Do we have to check for negative t? 
       double time = (t0 < t1) ? t0 : t1;
 
       // hit point: using p + time * d
@@ -211,8 +212,6 @@ namespace raytrace {
         d/dy --> 2y = 0
       */
       std::shared_ptr<Vector4> hit_normal = (*((*hit_point) - _center)) * 2;
-
-      //std::cout << "Exiting intersection." << std::endl;
 
       return std::shared_ptr<Intersection>(new Intersection(hit_point, hit_normal, time));
     }
@@ -425,39 +424,58 @@ namespace raytrace {
       // viewing ray pointers
       std::shared_ptr<Vector4> ray_origin, ray_direction;
 
+      // for determining what pixel color to draw
+      std::shared_ptr<Intersection> closest_hit, // closest hit
+                                    hit_point;   // current hit
+      std::shared_ptr<SceneObject> closest_obj;  // closest object
+
       // for each pixel
       for (j = 0; j < height; ++j) {
         for (i = 0; i < width; ++i) {
+          // reset pixel color determine-ators
+          hit_point = closest_hit = nullptr;
+          closest_obj = nullptr;
+
+          // compute viewing ray (initializes ray_origin and ray_direction)
+          compute_viewing_ray(ray_origin, ray_direction, width, height, i, j);
+
+          // see if the viewing ray hits any object
           for (o = 0; o < _objects.size(); ++o) {
-            // print i,j,color intensities
-            // compute viewing ray (initializes ray_origin and ray_direction)
-            compute_viewing_ray(ray_origin, ray_direction, width, height, i, j);
-
             // compute intersection point
-            std::shared_ptr<Intersection> hit_point = _objects[o]->intersect(*ray_origin, *ray_direction);
+            hit_point = _objects[o]->intersect(*ray_origin, *ray_direction);
 
-            // if an intersection exists between the viewing ray and scene object
+            // if an intersection was found
             if(hit_point != nullptr) {
-              // TODO: Review below work
-              // *1 trick (out of laziness)
-              std::shared_ptr<Vector4> surface_normal(hit_point->normal()*1);
-
-              // evaluate shading model and set pixel to that color // page 82
-              // we have diffuse_color and light intensity
-              std::shared_ptr<Color> new_color = evaluate_shading(_objects[o], hit_point, surface_normal);
-
-              image->set_pixel(i,j, *new_color);
-            }
-            // check to see if we've drawn an object yet (if we did then don't accidentally overwrite it with 
-            // the background color)
-            // NOTE: need to somehow specify which is the closer object
-            else
-            {
-              // set pixel color to background color (no hit)
-              image->set_pixel(i, j, *_background_color);
+              // if closest_hit not yet set, set it to the newly found hit_point
+              if(closest_hit == nullptr) {
+                closest_hit = hit_point;
+                closest_obj = _objects[o];
+              }
+              // if there is another hit, check to see if it's closer than the previous
+              // (if so set closest hit to current hitpoint)
+              else if(closest_hit != nullptr && hit_point->t() < closest_hit->t()) {
+                closest_hit = hit_point;
+                closest_obj = _objects[o];
+              }
             }
           }
 
+          // if an intersection exists between the viewing ray and scene object
+          if(closest_hit != nullptr) {
+            // TODO: Review below work
+            // *1 trick (out of laziness)
+            std::shared_ptr<Vector4> surface_normal(closest_hit->normal()*1);
+
+            // evaluate shading model and set pixel to that color; page 82
+            std::shared_ptr<Color> draw_color = evaluate_shading(closest_obj, closest_hit, surface_normal);
+
+            image->set_pixel(i,j, *draw_color);
+          }
+          else // no intersection so just draw the background
+          {
+            // set pixel color to background color (no hit)
+            image->set_pixel(i, j, *_background_color);
+          }
         }
       }
       // TODO: implement the raytracing algorithm described in section
@@ -496,8 +514,6 @@ namespace raytrace {
       // if we are using the perspective transform, compute the viewing ray based off of 
       //     perspective transform
       if(_perspective) {
-        //std::cout << "Perspective" << std::endl;
-        // TODO: somehow clean up below line
         // below * stuff with shared_ptr is an abstraction leak
         ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
 
@@ -560,22 +576,26 @@ namespace raytrace {
 
       total_color = *(_ambient_light->color() * _ambient_light->intensity()) + accumulated_color;
 
-      // one assert came out as 1.00068 (this is to fix that case)
-      (*total_color)[0] = ((*total_color)[0] > 1.0 /*&& (*total_color)[0] < 1.1*/) ? round((*total_color)[0]) : (*total_color)[0];
-      (*total_color)[1] = ((*total_color)[1] > 1.0 /*&& (*total_color)[1] < 1.1*/) ? round((*total_color)[1]) : (*total_color)[1];
-      (*total_color)[2] = ((*total_color)[2] > 1.0 /*&& (*total_color)[2] < 1.1*/) ? round((*total_color)[2]) : (*total_color)[2];
 
-      /*if((*total_color)[0] > 1.0 || (*total_color)[1] > 1.0 || (*total_color)[2] > 1.0) {
-        std::cout<<"Color intensities: " << (*total_color)[0]
-                 << " "                  << (*total_color)[1] 
-                 << " "                  << (*total_color)[2] << std::endl;
-      }*/
+      // this loop is to account for over-exposure
+      for(int i = 0; i < total_color->dimension(); ++i) {
+        // one assert came out as 1.00068 (this is to fix that case)
+        // NOTE: We might want to look into this (over-exposure as sometimes values reach 1.1006)
+        (*total_color)[i] = ((*total_color)[i] > 1.0 /*&& (*total_color)[i] < 1.1*/) ? round((*total_color)[i]) : (*total_color)[i];
+      }
+
+      // NOTE: Would we ever have to worry about under-exposure (i.e. < 0.0) ? Uncomment below if so:
+      /*
+      for(int i = 0; i < total_color->dimension(); ++i) {
+        (*total_color)[i] = ((*total_color)[i] < 0.0) ? 0.0 : (*total_color)[i];
+      }
+      */
 
       return total_color;
+    }
     // TODO: You will probably want to write some private helper
     // functions to break up the render() function into digestible
     // pieces.
-    }
   };
 }
 
