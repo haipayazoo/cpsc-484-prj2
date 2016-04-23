@@ -108,6 +108,16 @@ namespace raytrace {
     return color;
   }
 
+  // Multiply 2 colors together.  I.e. one color is a filter for the other.
+  // This is a component-by-component multiply.
+  std::shared_ptr<Color> color_multiply(std::shared_ptr<Color> a, std::shared_ptr<Color> b) {
+    std::shared_ptr<Color> color(new Color);
+    (*color)[0] = (*a)[0] * (*b)[0];
+    (*color)[1] = (*a)[1] * (*b)[1];
+    (*color)[2] = (*a)[2] * (*b)[2];
+    return color;
+  }
+
   // Class that represents an intersection between a viewing ray and a
   // scene object, complete with a point of intersection, surface
   // normal vector, and time parameter t.
@@ -226,8 +236,11 @@ namespace raytrace {
         x^2 + y^2 = r^2
         d/dx --> 2x = 0
         d/dy --> 2y = 0
+
+        Normally, we would multiply by 2, but a normal is a normal regardless
+        of its magnitude.
       */
-      std::shared_ptr<Vector4> hit_normal = (*((*hit_point) - _center)) * 2;
+      std::shared_ptr<Vector4> hit_normal = ((*hit_point) - _center);
 
       return std::shared_ptr<Intersection>(new Intersection(hit_point, hit_normal, time));
     }
@@ -430,80 +443,70 @@ namespace raytrace {
     // executing the core raytracing algorithm.
     std::shared_ptr<Image> render(int width, int height) const {
       // Check out the book, page 84
-
       assert(width > 0);
       assert(height > 0);
-      
       std::shared_ptr<Image> image(new Image(width, height, *_background_color));
-
       // pixel coordinate positions
-      unsigned int i, j, o;
-
+      int i, j;
       // viewing ray pointers
       std::shared_ptr<Vector4> ray_origin, ray_direction;
-
       // for determining what pixel color to draw
-      std::shared_ptr<Intersection> closest_hit, // closest hit
-                                    hit_point;   // current hit
+      std::shared_ptr<Intersection> closest_hit; // closest hit
       std::shared_ptr<SceneObject> closest_obj;  // closest object
 
       // for each pixel
       for (j = 0; j < height; ++j) {
-
         // debug (for ballpit)
         //std::cout<< "Row " << j << std::endl;
-        
         for (i = 0; i < width; ++i) {
-          // reset pixel color determine-ators
-          hit_point = closest_hit = nullptr;
-          closest_obj = nullptr;
-
           // compute viewing ray (initializes ray_origin and ray_direction)
           compute_viewing_ray(ray_origin, ray_direction, width, height, i, j);
-
           // see if the viewing ray hits any object
-          for (o = 0; o < _objects.size(); ++o) {
-            // compute intersection point
-            hit_point = _objects[o]->intersect(*ray_origin, *ray_direction);
-
-            // if an intersection was found
-            if(hit_point != nullptr) {
-              // if closest_hit not yet set, set it to the newly found hit_point
-              if(closest_hit == nullptr) {
-                closest_hit = hit_point;
-                closest_obj = _objects[o];
-              }
-              // if there is another hit, check to see if it's closer than the previous
-              // (if so set closest hit to current hitpoint)
-              else if(closest_hit != nullptr && hit_point->t() < closest_hit->t()) {
-                closest_hit = hit_point;
-                closest_obj = _objects[o];
-              }
-            }
-          }
-
+          get_closest_hit(closest_hit, closest_obj, ray_origin, ray_direction);
           // if an intersection exists between the viewing ray and scene object
           if(closest_hit != nullptr) {
-            // TODO: Review below work
             // *1 trick (out of laziness)
             std::shared_ptr<Vector4> surface_normal(closest_hit->normal()*1);
-
             // evaluate shading model and set pixel to that color; page 82
             std::shared_ptr<Color> draw_color = evaluate_shading(closest_obj, closest_hit, surface_normal);
-
             image->set_pixel(i, j, *draw_color);
           }
-          else // no intersection so just draw the background
-          {
+          else { // no intersection so just draw the background
             // set pixel color to background color (no hit)
             image->set_pixel(i, j, *_background_color);
           }
         }
       }
-      // TODO: implement the raytracing algorithm described in section
-      // 4.6 of Marschner et al.
-      
       return image;
+    }
+
+    void get_closest_hit(std::shared_ptr<Intersection> &closest_hit,
+                        std::shared_ptr<SceneObject> &closest_obj,
+                        std::shared_ptr<Vector4> ray_origin,
+                        std::shared_ptr<Vector4> ray_direction) const {
+      std::shared_ptr<Intersection> hit_point;   // current hit
+
+      // reset pixel color determine-ators
+      hit_point = closest_hit = nullptr;
+      closest_obj = nullptr;
+      for (std::shared_ptr<SceneObject> obj : _objects) {
+        // compute intersection point
+        hit_point = obj->intersect(*ray_origin, *ray_direction);
+        // if an intersection was found
+        if(hit_point != nullptr) {
+          // if closest_hit not yet set, set it to the newly found hit_point
+          if(closest_hit == nullptr) {
+            closest_hit = hit_point;
+            closest_obj = obj;
+          }
+          // if there is another hit, check to see if it's closer than the previous
+          // (if so set closest hit to current hitpoint)
+          else if(hit_point->t() < closest_hit->t()) {
+            closest_hit = hit_point;
+            closest_obj = obj;
+          }
+        }
+      }
     }
 
   private:
@@ -512,13 +515,10 @@ namespace raytrace {
                              std::shared_ptr<Vector4>& ray_direction,
                              int width, int height, int i, int j) const{
       // Page 74 - 76 of book
-
       // Ray: A origin point and propagation direction; page 73
-
       // what are these again? I think they're the positions in the image (translated); page 75
       double u, v;
-
-      // what are these again? I think they're basis vectors off the camera; page 144-145
+      // Camera vectors
       std::shared_ptr<Vector4> vec_u, vec_v, vec_w;
 
       // compute u and v
@@ -536,19 +536,16 @@ namespace raytrace {
       // vec_v = w cross u
       vec_v = vec_w->cross(*vec_u);
 
-      // if we are using the perspective transform, compute the viewing ray based off of 
-      //     perspective transform
       if(_perspective) {
+        // Perspective transform
         // below * stuff with shared_ptr is an abstraction leak
         ray_direction = *(*(*vec_w * -_camera->d()) + *(*vec_u * u)) + *(*vec_v * v);
-
         // saying "vector4 * 1" is a lazy way to make a ptr_type of the vector4
-        // POSSIBLE TODO: create macro #define make_vector_ptr(v) (v*i)
         ray_origin = _camera->location() * 1;
       }
       else {
+        // Orthographic transform
         ray_direction = -(*vec_w);
-        // TODO: somehow clean up below line
         ray_origin = *(_camera->location() + *(*vec_u * u)) + *vec_v * v;
       }
     }
@@ -557,9 +554,8 @@ namespace raytrace {
     std::shared_ptr<Color> evaluate_shading(std::shared_ptr<SceneObject> scene_obj,
                                             std::shared_ptr<Intersection> intersection,
                                             std::shared_ptr<Vector4> surface_normal) const{
-      // Page 84
-
       /*
+        Page 84
         L = k_a*I_a + sum(k_d * I_i * max(0, n * l))
 
         Color L = pixel color
@@ -573,15 +569,11 @@ namespace raytrace {
 
       // I believe this is the proper way to have the initial value for the accumulator
       std::shared_ptr<Color> accumulated_color(web_color(0)); // or create new color with default constructor
-      std::shared_ptr<Color> total_color;
-
       // Variables used to calculate and temporarily store the unit light vector
       std::shared_ptr<Vector4> unit_light_vector;
       std::shared_ptr<Vector4> light_displacement;
-
       // Variable to store n * l (in max function)
       double n_l;
-
       // Variable for unit surface normal (of scene object)
       std::shared_ptr<Vector4> unit_surface_normal = (*surface_normal)/surface_normal->magnitude();
 
@@ -589,39 +581,23 @@ namespace raytrace {
       for(std::shared_ptr<PointLight> point_light : _point_lights) {
         // displacment from intersection location to point_light location
         light_displacement = point_light->location() - intersection->point();
-
         // find the intensity
         unit_light_vector = (*light_displacement) / light_displacement->magnitude();
-
         // do fancy arithmetic
         n_l = (*unit_surface_normal) * unit_light_vector;
-
         accumulated_color = *accumulated_color + 
-                            (*(scene_obj->diffuse_color() * point_light->intensity()) * 
-                            ((n_l > 0) ? n_l : 0) );
+                            color_multiply(
+                                *(scene_obj->diffuse_color() * point_light->intensity()) * ((n_l > 0) ? n_l : 0),
+                                point_light->color() * 1
+                            );
       }
-
-      total_color = *(_ambient_light->color() * _ambient_light->intensity()) + accumulated_color;
-
-
-      // this loop is to account for over-exposure
-      for(int i = 0; i < total_color->dimension(); ++i) {
-        // NOTE: Set to 1.0 as any "over-exposure" will crash the program
-        (*total_color)[i] = ((*total_color)[i] > 1.0 /*&& (*total_color)[i] < 1.1*/) ? 1.0 : (*total_color)[i];
+      accumulated_color = *(_ambient_light->color() * _ambient_light->intensity()) + accumulated_color;
+      // NOTE: Set to 1.0 as any "over-exposure" will crash the program
+      for(int i = 0; i < accumulated_color->dimension(); ++i) {
+        (*accumulated_color)[i] = ((*accumulated_color)[i] > 1.0) ? 1.0 : (*accumulated_color)[i];
       }
-
-      // NOTE: Would we ever have to worry about under-exposure (i.e. < 0.0) ? Uncomment below if so:
-      /*
-      for(int i = 0; i < total_color->dimension(); ++i) {
-        (*total_color)[i] = ((*total_color)[i] < 0.0) ? 0.0 : (*total_color)[i];
-      }
-      */
-
-      return total_color;
+      return accumulated_color;
     }
-    // TODO: You will probably want to write some private helper
-    // functions to break up the render() function into digestible
-    // pieces.
   };
 }
 
